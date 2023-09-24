@@ -118,10 +118,10 @@ const handleAddProduct = async (request, response) => {
 
       console.log(data);
 
-      if (!data.discount && data.discont && data.discount_count) {
-        data.discount = data.discount_count;
-      } else {
+      if (!data.discount) {
         data.discount = 0;
+      } else {
+        data.discount = parseFloat(data.discount);
       }
 
       delete data.discont;
@@ -198,7 +198,7 @@ const handleUpdateProduct = async (request, response, pathname) => {
     request.on("end", async () => {
       const data = JSON.parse(body);
 
-      if (data.discount === false) {
+      if (!data.discount) {
         data.discount = 0;
       }
 
@@ -212,7 +212,13 @@ const handleUpdateProduct = async (request, response, pathname) => {
         }
       }
 
-      await updateProductById(id, { ...data, image: pathfile });
+      if (pathfile) {
+        await updateProductById(id, { ...data, image: pathfile });
+      } else {
+        delete data.image;
+        await updateProductById(id, data);
+      }
+
       response.writeHead(200, {
         ...corsHeaders,
         "Content-Type": "application/json",
