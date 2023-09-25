@@ -14,6 +14,7 @@ import {
   updateProductById,
 } from "./databaseModule.js";
 import { access, readFile, writeFile } from "node:fs/promises";
+import { readdir, unlink } from "node:fs";
 
 const NOT_FOUND_MESSAGE = "Не найдено";
 const SERVER_ERROR_MESSAGE = "Внутренняя ошибка сервера";
@@ -202,22 +203,16 @@ const handleUpdateProduct = async (request, response, pathname) => {
         data.discount = 0;
       }
 
-      let pathfile = "";
-
       if (data.image?.startsWith("data:image")) {
         const format = data.image.match(/^data:image\/([a-z+]+);base64,/i)[1];
 
         if (["png", "svg+xml", "jpeg"].includes(format)) {
-          pathfile = await loadImage(response, data.image, format, data.id);
+          await loadImage(response, data.image, format, data.id);
         }
       }
 
-      if (pathfile) {
-        await updateProductById(id, { ...data, image: pathfile });
-      } else {
-        delete data.image;
-        await updateProductById(id, data);
-      }
+      delete data.image;
+      await updateProductById(id, data);
 
       response.writeHead(200, {
         ...corsHeaders,
@@ -233,8 +228,10 @@ const handleUpdateProduct = async (request, response, pathname) => {
 // удалить товар по его идентификатору
 const handleDeleteProduct = async (response, pathname) => {
   try {
+    const id = pathname.split("/").at(-1);
+
     const goodsLengthBeforeDeleting = (await getGoods()).length;
-    await deleteProductById(pathname.split("/").at(-1));
+    await deleteProductById(id);
     const goodsLengthAfterDeleting = (await getGoods()).length;
 
     if (goodsLengthAfterDeleting === goodsLengthBeforeDeleting) {
@@ -245,6 +242,17 @@ const handleDeleteProduct = async (response, pathname) => {
       response.end(JSON.stringify({ message: INVALID_REQUEST_MESSAGE }));
       return;
     }
+
+    readdir(IMAGE_FOLDER, (err, files) => {
+      files.forEach((file) => {
+        if (file.split(".")[0] === id)
+          unlink(IMAGE_FOLDER + "/" + file, (err) => {
+            if (err) {
+              console.log("Изображение у товара", id, "отсутствует");
+            }
+          });
+      });
+    });
 
     response.writeHead(200, {
       ...corsHeaders,
